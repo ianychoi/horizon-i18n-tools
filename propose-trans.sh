@@ -2,7 +2,7 @@
 
 THRESH=95
 WORKDIR=$HOME/horizon
-RELEASE=juno
+RELEASE=master
 
 usage_exit() {
     set +o xtrace
@@ -33,7 +33,11 @@ done
 set -o xtrace
 
 if [ ! -n "$BASE_BRANCH" ]; then
-    BASE_BRANCH=stable/$RELEASE
+    if [ $RELEASE = "master" ]; then
+        BASE_BRANCH=$RELEASE
+    else
+        BASE_BRANCH=stable/$RELEASE
+    fi
 fi
 
 if [ $RELEASE = "icehouse" ]; then
@@ -45,10 +49,9 @@ fi
 export GIT_PAGER=
 export DJANGO_SETTINGS_MODULE=openstack_dashboard.test.settings
 
-TX_PROJECT=horizon
-TX_RESOURCES="horizon-translations-$RELEASE openstack-dashboard-translations-$RELEASE horizon-js-translations-$RELEASE"
+ORIGIN_DIR=$PWD
+PROJECT=horizon
 SOURCE_LANG=en
-TX_OPTS=-f
 WORK_BRANCH=translation-imports-for-$RELEASE
 
 TOP_DIR=$(cd $(dirname $0) && pwd)
@@ -64,17 +67,23 @@ setup_work_branch() {
     if `git branch | grep $WORK_BRANCH >/dev/null 2>&1`; then
         git checkout $WORK_BRANCH
     else
-        git checkout -b $WORK_BRANCH origin/$BASE_BRANCH
+        git checkout -b $WORK_BRANCH remotes/origin/$BASE_BRANCH
     fi
 }
 
-setup_tx_config() {
-    if `grep translations-$RELEASE .tx/config >/dev/null`; then
-        # .tx/config already has resoruce entries for the targeted release
-        return
-    fi
-    # If not, modify .tx/config from the existing .tx/config
-    sed -i -e "s|translations\(-[a-z]\+\)\?\]$|translations-$RELEASE\]|" .tx/config
+# Setup project horizon for Zanata
+# Originally, "setup_horizon" function in common_translation_update.sh
+# from openstack-infra/project-config repository
+function setup_zanata_horizon {
+    local project=horizon
+    local version=${1:-master}
+
+    $ORIGIN_DIR/create-zanata-xml.py -p $project \
+        -v $version --srcdir . --txdir . -r './horizon/locale/*.pot' \
+        'horizon/locale/{locale_with_underscore}/LC_MESSAGES/{filename}.po' \
+        -r './openstack_dashboard/locale/*.pot' \
+        'openstack_dashboard/locale/{locale_with_underscore}/LC_MESSAGES/{filename}.po' \
+        -e '.*/**' -f zanata.xml
 }
 
 cleanup_message_catalogs() {
@@ -180,16 +189,54 @@ show_add_delete_files() {
     git diff --cached --name-only --diff-filter=D
 }
 
+# Pull translation project from Zanata
+# Modified from common_translation_update.sh
+# in openstack-infra/project-config repository
+function pull_from_zanata {
+    local project=$1
+    local percentage=$2
+
+    # Since Zanata does not currently have an option to not download new
+    # files, we download everything, and then remove new files that are not
+    # translated enough.
+    zanata-cli -B -e pull
+
+
+    for i in $(find . -name '*.po' ! -path './.*' -prune | cut -b3-); do
+        check_po_file "$i"
+        # We want new files to be >{$percentage}% translated. The glossary and
+        # common documents in openstack-manuals have that relaxed to
+        # >8%.
+        if [ $project = "openstack-manuals" ]; then
+            case "$i" in
+                *glossary*|*common*)
+                    percentage=8
+                    ;;
+            esac
+        fi
+        if [ $RATIO -lt $percentage ]; then
+            # This means the file is below the ratio, but we only want
+            # to delete it, if it is a new file. Files known to git
+            # that drop below 20% will be cleaned up by
+            # cleanup_po_files.
+            if ! git ls-files | grep -xq "$i"; then
+                rm -f "$i"
+            fi
+        fi
+    done
+}
+
 setup_horizon_repo_if_nonexist
 cd $WORKDIR
 cleanup_message_catalogs
 setup_work_branch
 git status
-setup_tx_config
+setup_zanata_horizon
 remove_all_message_catalogs
 
 update_pot_files
-tx pull -f -a --minimum-perc $THRESH
+#tx pull -f -a --minimum-perc $THRESH
+pull_from_zanata $PROJECT $THRESH
 remove_partial_languages
 git add --all horizon/locale/
 git add --all openstack_dashboard/locale/
