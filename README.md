@@ -3,8 +3,8 @@ horizon-i18n-tools
 
 Utilities to manage OpenStack Dashboard translations.
 
-* **propose-trans.sh**: A script to download Transifex translations and prepare a patch
-* **import-trans.sh**: A script to import Transifex translations into Horizon repo
+* **propose-trans.sh**: A script to download Zanata translations and prepare a patch
+* **import-trans.sh**: A script to import Zanata translations into Horizon repo
 * **update-pot.sh**: A script to update POT files and check if it has meaningful change
 * **snapshot-trans.sh**: A scirpt to fetch Transifex translation of a given language
   and commit it as a snapshot to Horizon repo
@@ -15,12 +15,12 @@ Prerequisites
 The following translation tools are required.
 
 * gettext: ``apt-get install gettext``
-* Transifex client: ``pip install transifex-client``
+* Zanata client: http://zanata-client.readthedocs.org/en/latest/#installation
 
 propose-trans.sh
 ----------------
 
-A script to download Transifex translations and prepare a patch for
+A script to download Zanata translations and prepare a patch for
 stable branches.
 
 Usage:
@@ -46,7 +46,7 @@ $HOME/horizon is used as a working directory by default.
 
 The script does the following:
 
-* Download up-to-date translations from Transifex with the specified progress
+* Download up-to-date translations from Zanata with the specified progress
   (the default is 95%).
 * Check if all of Horizon django.po, djangojs.po and OpenStack Dashboard django.po
   meet the specified progress. If not, remove such languages.
@@ -64,7 +64,7 @@ You need to do the following manually.
 import-trans.sh
 ---------------
 
-A script to import Transifex translations into Horizon repo.
+A script to import Zanata translations into Horizon repo.
 
 It is usually used to update translations in the I18N translation check site.
 
@@ -73,7 +73,7 @@ the Horizon repository is expected to be in /opt/stack/horizon.
 
 The script does the following:
 
-* Download up-to-date translations from Transifex with >=30% progress
+* Download up-to-date translations from Zanata with >=30% progress
 * Compile message catalogs
 * Update LANGUAGES settings in Horizon ``openstack_dashboard/settings.py``
 * Restart apache2 service
