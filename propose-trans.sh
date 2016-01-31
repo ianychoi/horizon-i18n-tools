@@ -189,6 +189,32 @@ show_add_delete_files() {
     git diff --cached --name-only --diff-filter=D
 }
 
+# Check the amount of translation done for a .po file, sets global variable
+# RATIO.
+function check_po_file {
+    local file=$1
+    local dropped_ratio=$2
+
+    trans=$(msgfmt --statistics -o /dev/null "$file" 2>&1)
+    check="^0 translated messages"
+    if [[ $trans =~ $check ]] ; then
+        RATIO=0
+    else
+        if [[ $trans =~ " translated message" ]] ; then
+            trans_no=$(echo $trans|sed -e 's/ translated message.*$//')
+        else
+            trans_no=0
+        fi
+        if [[ $trans =~ " untranslated message" ]] ; then
+            untrans_no=$(echo $trans|sed -e 's/^.* \([0-9]*\) untranslated message.*/\1/')
+        else
+            untrans_no=0
+        fi
+        total=$(($trans_no+$untrans_no))
+        RATIO=$((100*$trans_no/$total))
+    fi
+}
+
 # Pull translation project from Zanata
 # Modified from common_translation_update.sh
 # in openstack-infra/project-config repository
@@ -231,7 +257,7 @@ cd $WORKDIR
 cleanup_message_catalogs
 setup_work_branch
 git status
-setup_zanata_horizon
+setup_zanata_horizon $RELEASE
 remove_all_message_catalogs
 
 update_pot_files
